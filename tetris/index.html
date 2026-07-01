@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#090b16" />
+  <title>霓虹方塊 Neon Blocks</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <a class="arcade-home" href="../game-center/index.html">← 遊戲中心</a>
+  <main class="app">
+    <header class="brand">
+      <div><span class="eyebrow">ARCADE / 01</span><h1>霓虹方塊</h1></div>
+      <button id="soundBtn" class="icon-btn" aria-label="切換音效">音效：開</button>
+    </header>
+
+    <section class="game-shell">
+      <aside class="panel left-panel">
+        <div class="stat"><span>分數</span><strong id="score">0</strong></div>
+        <div class="stat"><span>最高分</span><strong id="highScore">0</strong></div>
+        <div class="stat-row"><div class="stat"><span>等級</span><strong id="level">1</strong></div><div class="stat"><span>消除</span><strong id="lines">0</strong></div></div>
+        <div class="mini-card"><span>暫存 HOLD</span><canvas id="hold" width="120" height="100"></canvas></div>
+      </aside>
+
+      <div class="board-wrap">
+        <canvas id="board" width="300" height="600" aria-label="俄羅斯方塊遊戲區"></canvas>
+        <div id="overlay" class="overlay">
+          <p class="kicker">READY?</p>
+          <h2 id="overlayTitle">開始遊戲</h2>
+          <p id="overlayText">堆疊方塊，完成整行來消除它。</p>
+          <button id="startBtn" class="primary">開始</button>
+        </div>
+      </div>
+
+      <aside class="panel right-panel">
+        <div class="mini-card"><span>下一顆 NEXT</span><canvas id="next" width="120" height="100"></canvas></div>
+        <div class="controls-copy">
+          <span>操作方式</span>
+          <p><kbd>←</kbd><kbd>→</kbd> 移動</p><p><kbd>↑</kbd> 旋轉</p><p><kbd>↓</kbd> 加速</p><p><kbd>Space</kbd> 直接落下</p><p><kbd>C</kbd> 暫存</p><p><kbd>P</kbd> 暫停</p>
+        </div>
+      </aside>
+    </section>
+
+    <section class="touch-controls" aria-label="觸控按鍵">
+      <button data-action="left" aria-label="向左">←</button><button data-action="rotate" aria-label="旋轉">↻</button><button data-action="right" aria-label="向右">→</button><button data-action="down" aria-label="向下">↓</button><button data-action="drop" class="wide">落下</button><button data-action="hold">暫存</button>
+    </section>
+  </main>
+  <script src="game.js"></script>
+</body>
+</html>

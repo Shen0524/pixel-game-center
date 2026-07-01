@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#07110d" />
+  <title>夜行蛇｜Snake Game</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <a class="arcade-home" href="../game-center/index.html">← 遊戲中心</a>
+  <main class="app">
+    <header>
+      <div><span class="eyebrow">NIGHT GARDEN / 02</span><h1>夜行蛇</h1><p>沿著月光前進，吃下每一顆果實。</p></div>
+      <button id="soundBtn" class="quiet">音效：開</button>
+    </header>
+
+    <section class="game-layout">
+      <aside class="stats">
+        <article><span id="scoreLabel">目前分數</span><strong id="score">0</strong></article>
+        <article><span id="score2Label">最高分</span><strong id="score2">0</strong></article>
+        <article><span id="lengthLabel">蛇身長度</span><strong id="length">3</strong></article>
+        <article><span>目前速度</span><strong id="speed">1×</strong></article>
+      </aside>
+
+      <div class="board-frame">
+        <canvas id="game" width="560" height="560" aria-label="貪食蛇遊戲區"></canvas>
+        <div id="overlay" class="overlay">
+          <div class="moon">◐</div>
+          <span id="overlayKicker">準備好了嗎？</span>
+          <h2 id="overlayTitle">開始夜行</h2>
+          <p id="overlayText">使用方向鍵或 WASD 控制方向。<br>手機也可以直接滑動畫面。</p>
+          <div class="mode-choice" id="modeChoice"><button data-mode="solo" class="active">單人</button><button data-mode="duo">雙人</button></div>
+          <button id="startBtn">開始遊戲</button>
+        </div>
+      </div>
+
+      <aside class="guide">
+        <span>操作方式</span>
+        <div class="keys"><i></i><kbd>↑</kbd><i></i><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd></div>
+        <p><b>玩家 1</b>　WASD</p><p><b>玩家 2</b>　方向鍵</p><p>空白鍵　暫停</p>
+        <div class="tip"><b>小提示</b><br>越長速度越快，別咬到自己的尾巴。</div>
+      </aside>
+    </section>
+
+    <nav class="touch" aria-label="觸控方向鍵">
+      <i></i><button data-dir="up" aria-label="向上">↑</button><i></i>
+      <button data-dir="left" aria-label="向左">←</button><button id="pauseBtn" aria-label="暫停">Ⅱ</button><button data-dir="right" aria-label="向右">→</button>
+      <i></i><button data-dir="down" aria-label="向下">↓</button><i></i>
+    </nav>
+  </main>
+  <script src="game.js"></script>
+</body>
+</html>
