@@ -2,6 +2,7 @@ const canvas=document.querySelector('#game'),ctx=canvas.getContext('2d'),$=s=>do
 const TILE=48,COLS=80,ROWS=12,GRAVITY=1600;
 const keys={left:false,right:false,jump:false};
 let map,hero,enemies=[],coins=[],treasures=[],camera=0,score=0,lives=3,stage=0,running=false,paused=false,last=0,audio,nextAction='restart';
+let coinsCollected=0,starsCollected=0,openedBlocks=0;
 
 const LEVELS=[[
   '', '', '',
@@ -28,7 +29,7 @@ const LEVELS=[[
   '################################################################################'
 ]];
 
-function resetGame(){lives=3;score=0;stage=0;loadLevel(0)}
+function resetGame(){lives=3;score=0;stage=0;coinsCollected=0;starsCollected=0;openedBlocks=0;loadLevel(0)}
 function loadLevel(index){
   stage=index;map=LEVELS[index].map(row=>row.padEnd(COLS).slice(0,COLS).split(''));
   enemies=[];coins=[];treasures=[];let start={x:96,y:300};
@@ -42,8 +43,10 @@ function loadLevel(index){
     }
     if(value==='C'){coins.push({x:x*TILE+12,y:6*TILE+10,taken:false});map[y][x]=' '}
   }));
+  map.slice(0,4).forEach(row=>row.forEach((value,x)=>{if(value==='Q')row[x]='B'}));
   (index===0?[11,35,55]:[12,34,57]).forEach(x=>map[6][x]='Q');
-  hero={x:start.x,y:start.y-44,w:34,h:44,vx:0,vy:0,ground:false,dead:false,invincible:0};
+  const heroHeight=starsCollected>0?64:44;
+  hero={x:start.x,y:start.y-heroHeight,w:34,h:heroHeight,vx:0,vy:0,ground:false,dead:false,invincible:0};
   camera=0;running=true;paused=false;last=performance.now();nextAction='restart';hideOverlay();updateHud();draw();requestAnimationFrame(loop);
 }
 
@@ -63,15 +66,20 @@ function collide(object,axis){
   }
 }
 function openTreasure(tx,ty){
-  map[ty][tx]='B';score+=250;treasures.push({x:tx*TILE+12,y:ty*TILE-8,life:1});tone(880,.09);updateHud();
+  const rewards=['coin','star','star','coin'],type=rewards[openedBlocks++%rewards.length];
+  map[ty][tx]='B';
+  if(type==='coin'){score+=100;coinsCollected++;treasures.push({type,x:tx*TILE+12,y:ty*TILE-8,life:.8});tone(880,.09)}
+  else{treasures.push({type,x:tx*TILE+10,y:ty*TILE-4,w:28,h:28,life:8,reveal:.4,taken:false});tone(640,.12)}
+  updateHud();
 }
 
 function update(dt){
   hero.invincible=Math.max(0,hero.invincible-dt);hero.vx=(keys.right-keys.left)*270;
-  if(keys.jump&&hero.ground){hero.vy=-620;hero.ground=false;tone(420,.05)}
+  if(keys.jump&&hero.ground){hero.vy=-720;hero.ground=false;tone(420,.05)}
   physics(hero,dt);if(hero.y>650)return loseLife();
-  coins.forEach(coin=>{if(!coin.taken&&overlap(hero,{x:coin.x,y:coin.y,w:24,h:24})){coin.taken=true;score+=100;tone(760,.05)}});
-  treasures.forEach(item=>{item.y-=70*dt;item.life-=dt});treasures=treasures.filter(item=>item.life>0);
+  coins.forEach(coin=>{if(!coin.taken&&overlap(hero,{x:coin.x,y:coin.y,w:24,h:24})){coin.taken=true;coinsCollected++;score+=100;tone(760,.05)}});
+  treasures.forEach(item=>{if(item.reveal>0){item.y-=70*dt;item.reveal-=dt}item.life-=dt;if(item.type==='star'&&!item.taken&&item.reveal<=0&&overlap(hero,item))collectStar(item)});
+  treasures=treasures.filter(item=>item.life>0&&!item.taken);
   enemies.forEach(enemy=>updateEnemy(enemy,dt));
   if(stage===0){const flagX=map.find(row=>row.includes('F'))?.indexOf('F')*TILE;if(flagX>=0&&hero.x>flagX)enterBossStage()}
   camera=Math.max(0,Math.min(hero.x-300,COLS*TILE-960));updateHud();
@@ -81,6 +89,7 @@ function updateEnemy(enemy,dt){
   const oldVx=enemy.vx;physics(enemy,dt);if(oldVx&&enemy.vx===0)enemy.vx=-oldVx;
   if(enemy.y>650){enemy.alive=false;return}
   if(!overlap(hero,enemy)||hero.dead||enemy.invincible>0)return;
+  if(hero.invincible>2&&enemy.type!=='boss'){enemy.alive=false;score+=300;tone(980,.05);return}
   const stomp=hero.vy>100&&hero.y+hero.h-enemy.y<28;
   if(stomp){
     hero.vy=-350;
@@ -92,12 +101,19 @@ function updateEnemy(enemy,dt){
     }else{enemy.alive=false;score+=200;tone(190,.08)}
   }else if(hero.invincible<=0)loseLife();
 }
+function collectStar(item){
+  item.taken=true;starsCollected++;score+=500;tone(1040,.16);
+  if(starsCollected===1){const feet=hero.y+hero.h;hero.h=64;hero.y=feet-hero.h}
+  else hero.invincible=10;
+  updateHud();
+}
 function overlap(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y}
 function enterBossStage(){running=false;nextAction='boss';showOverlay('CASTLE 1–2','魔王關開啟','穿越城堡，踩擊魔王三次來拯救像素世界。','進入魔王關')}
 function winGame(){running=false;nextAction='restart';score+=2000;showOverlay('ALL CLEAR','冒險成功！',`魔王已被擊敗，最終得到 <b>${score}</b> 分。`,'重新冒險');updateHud()}
 function loseLife(){
   if(hero.dead||hero.invincible>0)return;hero.dead=true;lives--;tone(90,.3);updateHud();
   if(lives<=0){running=false;nextAction='restart';showOverlay('GAME OVER','冒險結束','再試一次，寶物與魔王都在等著你。','重新挑戰');return}
+  starsCollected=0;
   setTimeout(()=>{const currentStage=stage;loadLevel(currentStage);hero.invincible=1.5},650);
 }
 
@@ -113,7 +129,7 @@ function draw(){
   else{ctx.fillStyle='#675278';for(let i=0;i<16;i++)ctx.fillRect(i*90-(camera*.15%90),70+(i%4)*55,18,32)}
   map.forEach((row,y)=>row.forEach((value,x)=>value!==' '&&value!=='F'&&drawTile(x,y,value)));
   coins.forEach((coin,i)=>{if(coin.taken)return;ctx.fillStyle='#ffd43b';ctx.beginPath();ctx.ellipse(coin.x+12-camera,coin.y+12,7+Math.sin(performance.now()/150+i)*3,12,0,0,7);ctx.fill()});
-  treasures.forEach(item=>{ctx.fillStyle='#fff36b';ctx.font='26px serif';ctx.fillText('★',item.x-camera,item.y)});
+  treasures.forEach(item=>{ctx.fillStyle=item.type==='coin'?'#ffd43b':'#fff36b';ctx.font=item.type==='coin'?'24px serif':'27px serif';ctx.fillText(item.type==='coin'?'●':'★',item.x-camera,item.y)});
   enemies.forEach(drawEnemy);drawFlag();drawHero();
 }
 function drawEnemy(enemy){
@@ -124,9 +140,9 @@ function drawEnemy(enemy){
   if(enemy.type!=='turtle'||!enemy.shell){ctx.fillStyle='#111';ctx.fillRect(px+10,enemy.y+17,4,6);ctx.fillRect(px+enemy.w-14,enemy.y+17,4,6)}
 }
 function drawFlag(){if(stage!==0)return;const row=map.find(r=>r.includes('F'));if(!row)return;const fx=row.indexOf('F')*TILE-camera;ctx.fillStyle='#eee';ctx.fillRect(fx,110,6,330);ctx.fillStyle='#ef4b3f';ctx.fillRect(fx+6,118,76,45);ctx.fillStyle='#ffd447';ctx.fillRect(fx+17,130,17,17)}
-function drawHero(){if(hero.dead)return;const px=hero.x-camera;ctx.globalAlpha=hero.invincible>0&&Math.floor(hero.invincible*12)%2?.35:1;ctx.fillStyle='#f04c43';ctx.fillRect(px+4,hero.y,26,12);ctx.fillStyle='#ffd39b';ctx.fillRect(px+7,hero.y+12,22,14);ctx.fillStyle='#244f88';ctx.fillRect(px+3,hero.y+26,28,18);ctx.fillStyle='#fff';ctx.fillRect(px+21,hero.y+14,4,5);ctx.globalAlpha=1}
+function drawHero(){if(hero.dead)return;const px=hero.x-camera,big=hero.h>44,flash=hero.invincible>2;ctx.globalAlpha=hero.invincible>0&&Math.floor(hero.invincible*12)%2?.4:1;ctx.fillStyle=flash?`hsl(${performance.now()/4%360} 90% 62%)`:'#f04c43';ctx.fillRect(px+4,hero.y,26,14);ctx.fillStyle='#ffd39b';ctx.fillRect(px+7,hero.y+14,22,big?20:12);ctx.fillStyle=flash?'#fff36b':'#244f88';ctx.fillRect(px+3,hero.y+(big?34:26),28,big?30:18);ctx.fillStyle='#fff';ctx.fillRect(px+21,hero.y+17,4,5);ctx.globalAlpha=1}
 function loop(time){if(!running)return;const dt=Math.min((time-last)/1000,.03);last=time;if(!paused)update(dt);draw();requestAnimationFrame(loop)}
-function updateHud(){$('#score').textContent=String(score).padStart(6,'0');$('#coins').textContent=String(coins.filter(c=>c.taken).length).padStart(2,'0');$('#lives').textContent='♥'.repeat(Math.max(lives,0))}
+function updateHud(){$('#score').textContent=String(score).padStart(6,'0');$('#coins').textContent=String(coinsCollected).padStart(2,'0');$('#lives').textContent='♥'.repeat(Math.max(lives,0))}
 function showOverlay(kicker,title,message,button){$('#kicker').textContent=kicker;$('#title').textContent=title;$('#message').innerHTML=message;$('#start').textContent=button;$('#overlay').classList.remove('hidden')}
 function hideOverlay(){$('#overlay').classList.add('hidden')}
 function tone(frequency,duration){audio??=new AudioContext();const oscillator=audio.createOscillator(),gain=audio.createGain();oscillator.type='square';oscillator.frequency.value=frequency;gain.gain.setValueAtTime(.025,audio.currentTime);gain.gain.exponentialRampToValueAtTime(.001,audio.currentTime+duration);oscillator.connect(gain).connect(audio.destination);oscillator.start();oscillator.stop(audio.currentTime+duration)}
