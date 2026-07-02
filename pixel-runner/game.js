@@ -133,7 +133,9 @@ function overlap(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y}
 function enterBossStage(){running=false;nextAction='boss';showOverlay('CASTLE 1–2','魔王關開啟','穿越城堡，踩擊魔王三次來拯救像素世界。','進入魔王關')}
 function winGame(){if(bossDefeated)return;bossDefeated=true;running=false;nextAction='restart';score+=2000;showOverlay('ALL CLEAR','冒險成功！',`魔王已被擊敗，最終得到 <b>${score}</b> 分。`,'重新冒險');updateHud()}
 function loseLife(){
-  if(hero.dead||hero.invincible>0)return;hero.dead=true;lives--;tone(90,.3);updateHud();
+  if(hero.dead||hero.invincible>0)return;
+  if(starsCollected>0){const feet=hero.y+hero.h;starsCollected=0;hero.h=44;hero.y=feet-44;hero.crouching=false;hero.invincible=1.5;hero.vy=-230;tone(150,.18);updateHud();return}
+  hero.dead=true;lives--;tone(90,.3);updateHud();
   if(lives<=0){running=false;nextAction='restart';showOverlay('GAME OVER','冒險結束','再試一次，寶物與魔王都在等著你。','重新挑戰');return}
   running=false;
   starsCollected=0;
