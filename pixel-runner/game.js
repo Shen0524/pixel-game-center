@@ -2,7 +2,7 @@ const canvas=document.querySelector('#game'),ctx=canvas.getContext('2d'),$=s=>do
 const TILE=48,COLS=80,ROWS=12,GRAVITY=1600;
 const keys={left:false,right:false,jump:false,down:false,fire:false};
 let map,hero,enemies=[],coins=[],treasures=[],fireballs=[],camera=0,score=0,lives=3,stage=0,running=false,paused=false,last=0,audio,nextAction='restart',loopToken=0,fireCooldown=0,bossDefeated=false;
-let coinsCollected=0,starsCollected=0,openedBlocks=0;
+let coinsCollected=0,starsCollected=0,openedBlocks=0,nextLifeAt=20,bonusUsed=false;
 
 const LEVELS=[[
   '', '', '',
@@ -27,9 +27,18 @@ const LEVELS=[[
   '################################################################################',
   '################################################################################',
   '################################################################################'
+],[
+  '', '', '', '', '',
+  '   C C C C C C C C C C C C C C C C C C C C',
+  '                                                  P',
+  '  S                                               P',
+  '################################################################################',
+  '################################################################################',
+  '################################################################################',
+  '################################################################################'
 ]];
 
-function resetGame(){lives=3;score=0;stage=0;coinsCollected=0;starsCollected=0;openedBlocks=0;loadLevel(0)}
+function resetGame(){lives=3;score=0;stage=0;coinsCollected=0;starsCollected=0;openedBlocks=0;nextLifeAt=20;bonusUsed=false;loadLevel(0)}
 function loadLevel(index){
   stage=index;map=LEVELS[index].map(row=>row.padEnd(COLS).slice(0,COLS).split(''));
   enemies=[];coins=[];treasures=[];fireballs=[];let start={x:96,y:300};
@@ -45,7 +54,8 @@ function loadLevel(index){
   }));
   const decorativeRows=index===1?map:map.slice(0,4);
   decorativeRows.forEach(row=>row.forEach((value,x)=>{if(value==='Q')row[x]='B'}));
-  (index===0?[11,35,55]:[12,34,57]).forEach(x=>map[6][x]='Q');
+  (index===0?[11,35,55]:index===1?[12,34,57]:[]).forEach(x=>map[6][x]='Q');
+  if(index===0)map[7][24]='P';
   const heroHeight=starsCollected>0?64:44;
   hero={x:start.x,y:start.y-heroHeight,w:34,h:heroHeight,vx:0,vy:0,ground:false,dead:false,invincible:0,crouching:false,facing:1};
   if(index===1)bossDefeated=false;
@@ -71,23 +81,30 @@ function collide(object,axis){
 function openTreasure(tx,ty){
   const rewards=['coin','star','star','coin'],type=rewards[openedBlocks++%rewards.length];
   map[ty][tx]='B';
-  if(type==='coin'){score+=100;coinsCollected++;treasures.push({type,x:tx*TILE+12,y:ty*TILE-8,life:.8});tone(880,.09)}
+  if(type==='coin'){addCoin();treasures.push({type,x:tx*TILE+12,y:ty*TILE-8,life:.8});tone(880,.09)}
   else{treasures.push({type,x:tx*TILE+10,y:ty*TILE-4,w:28,h:28,life:8,reveal:.4,taken:false});tone(640,.12)}
   updateHud();
 }
 
 function update(dt){
-  hero.invincible=Math.max(0,hero.invincible-dt);fireCooldown=Math.max(0,fireCooldown-dt);updateCrouch();
+  hero.invincible=Math.max(0,hero.invincible-dt);fireCooldown=Math.max(0,fireCooldown-dt);if(keys.down&&hero.ground&&tryPipe())return;updateCrouch();
   hero.vx=(keys.right-keys.left)*(hero.crouching?115:270);if(hero.vx)hero.facing=Math.sign(hero.vx);
   if(keys.jump&&hero.ground){hero.vy=-720;hero.ground=false;tone(420,.05)}
   if(keys.fire)shootFireball();
   physics(hero,dt);if(hero.y>650)return loseLife();
-  coins.forEach(coin=>{if(!coin.taken&&overlap(hero,{x:coin.x,y:coin.y,w:24,h:24})){coin.taken=true;coinsCollected++;score+=100;tone(760,.05)}});
+  coins.forEach(coin=>{if(!coin.taken&&overlap(hero,{x:coin.x,y:coin.y,w:24,h:24})){coin.taken=true;addCoin();tone(760,.05)}});
   treasures.forEach(item=>{if(item.reveal>0){item.y-=70*dt;item.reveal-=dt}item.life-=dt;if(item.type==='star'&&!item.taken&&item.reveal<=0&&overlap(hero,item))collectStar(item)});
   treasures=treasures.filter(item=>item.life>0&&!item.taken);
   enemies.forEach(enemy=>updateEnemy(enemy,dt));updateShellHits();updateFireballs(dt);
   if(stage===0){const flagX=map.find(row=>row.includes('F'))?.indexOf('F')*TILE;if(flagX>=0&&hero.x>flagX)enterBossStage()}
   camera=Math.max(0,Math.min(hero.x-300,COLS*TILE-960));updateHud();
+}
+function addCoin(){coinsCollected++;score+=100;if(coinsCollected>=nextLifeAt){lives++;nextLifeAt+=20;tone(1180,.25)}updateHud()}
+function tryPipe(){
+  const tx=Math.floor((hero.x+hero.w/2)/TILE),ty=Math.floor((hero.y+hero.h+3)/TILE);if(map[ty]?.[tx]!=='P')return false;
+  if(stage===0&&!bonusUsed&&tx===24){bonusUsed=true;running=false;tone(240,.22);loadLevel(2);return true}
+  if(stage===2&&tx===50){running=false;tone(360,.22);loadLevel(0);hero.x=48*TILE;hero.y=300;return true}
+  return false;
 }
 function updateCrouch(){
   if(starsCollected<1)return;
@@ -152,11 +169,15 @@ function drawTile(tx,ty,value){
 function draw(){
   ctx.setTransform(1,0,0,1,0,0);ctx.globalAlpha=1;ctx.clearRect(0,0,960,540);ctx.fillStyle=stage?'#241b32':'#63c9f1';ctx.fillRect(0,0,960,540);
   if(!stage){ctx.fillStyle='#fff';for(let i=0;i<8;i++){let px=(i*190-camera*.18)%1200;if(px<0)px+=1200;ctx.fillRect(px,78+(i%3)*50,70,18);ctx.fillRect(px+18,66+(i%3)*50,35,18)}}
-  else{
+  else if(stage===1){
     const sky=ctx.createLinearGradient(0,0,0,430);sky.addColorStop(0,'#30343b');sky.addColorStop(.55,'#555b63');sky.addColorStop(1,'#7a7f84');ctx.fillStyle=sky;ctx.fillRect(0,0,960,430);
     ctx.fillStyle='#d9dde0';ctx.beginPath();ctx.arc(785,92,48,0,Math.PI*2);ctx.fill();ctx.fillStyle='#30343b';ctx.beginPath();ctx.arc(804,78,45,0,Math.PI*2);ctx.fill();
     const shift=(camera*.18)%220;ctx.fillStyle='#25292e';for(let i=-1;i<7;i++){const bx=i*220-shift;ctx.fillRect(bx,205,150,225);ctx.fillRect(bx+42,155,66,50);ctx.beginPath();ctx.moveTo(bx+42,155);ctx.lineTo(bx+75,110);ctx.lineTo(bx+108,155);ctx.fill();ctx.fillStyle='#b9a86b';for(let wy=235;wy<390;wy+=52){ctx.fillRect(bx+25,wy,16,25);ctx.fillRect(bx+104,wy,16,25)}ctx.fillStyle='#25292e'}
     ctx.fillStyle='#42474d';ctx.fillRect(0,426,960,15);ctx.fillStyle='#737980';for(let i=0;i<18;i++){ctx.beginPath();ctx.arc(i*60-(camera*.35%60),426,18,Math.PI,0);ctx.fill()}
+  }else{
+    const cave=ctx.createLinearGradient(0,0,0,540);cave.addColorStop(0,'#102d3b');cave.addColorStop(1,'#06171f');ctx.fillStyle=cave;ctx.fillRect(0,0,960,540);
+    ctx.fillStyle='#1d4b59';for(let y=18;y<430;y+=54)for(let x=-40;x<1000;x+=90){const offset=(Math.floor(y/54)%2)*44;ctx.fillRect(x+offset-(camera*.08%90),y,72,32)}
+    ctx.fillStyle='#4f8790';ctx.fillRect(0,420,960,18);ctx.fillStyle='#8ed9d2';ctx.font='bold 16px monospace';ctx.textAlign='left';ctx.fillText('BONUS CAVE · 收集金幣後從右側水管離開',24,38);
   }
   map.forEach((row,y)=>row.forEach((value,x)=>value!==' '&&value!=='F'&&drawTile(x,y,value)));
   coins.forEach((coin,i)=>{if(coin.taken)return;ctx.fillStyle='#ffd43b';ctx.beginPath();ctx.ellipse(coin.x+12-camera,coin.y+12,7+Math.sin(performance.now()/150+i)*3,12,0,0,7);ctx.fill()});
