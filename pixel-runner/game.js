@@ -152,10 +152,10 @@ function draw(){
   ctx.setTransform(1,0,0,1,0,0);ctx.globalAlpha=1;ctx.clearRect(0,0,960,540);ctx.fillStyle=stage?'#241b32':'#63c9f1';ctx.fillRect(0,0,960,540);
   if(!stage){ctx.fillStyle='#fff';for(let i=0;i<8;i++){let px=(i*190-camera*.18)%1200;if(px<0)px+=1200;ctx.fillRect(px,78+(i%3)*50,70,18);ctx.fillRect(px+18,66+(i%3)*50,35,18)}}
   else{
-    const sky=ctx.createLinearGradient(0,0,0,430);sky.addColorStop(0,'#100d2a');sky.addColorStop(.55,'#362044');sky.addColorStop(1,'#9b3c35');ctx.fillStyle=sky;ctx.fillRect(0,0,960,430);
-    ctx.fillStyle='#f7e9b0';ctx.beginPath();ctx.arc(785,92,48,0,Math.PI*2);ctx.fill();ctx.fillStyle='#100d2a';ctx.beginPath();ctx.arc(804,78,45,0,Math.PI*2);ctx.fill();
-    const shift=(camera*.18)%220;ctx.fillStyle='#18132b';for(let i=-1;i<7;i++){const bx=i*220-shift;ctx.fillRect(bx,205,150,225);ctx.fillRect(bx+42,155,66,50);ctx.beginPath();ctx.moveTo(bx+42,155);ctx.lineTo(bx+75,110);ctx.lineTo(bx+108,155);ctx.fill();ctx.fillStyle='#f06a3b';for(let wy=235;wy<390;wy+=52){ctx.fillRect(bx+25,wy,16,25);ctx.fillRect(bx+104,wy,16,25)}ctx.fillStyle='#18132b'}
-    ctx.fillStyle='#ff5b32';ctx.fillRect(0,426,960,15);ctx.fillStyle='#ffc247';for(let i=0;i<18;i++){ctx.beginPath();ctx.arc(i*60-(camera*.35%60),426,18,Math.PI,0);ctx.fill()}
+    const sky=ctx.createLinearGradient(0,0,0,430);sky.addColorStop(0,'#30343b');sky.addColorStop(.55,'#555b63');sky.addColorStop(1,'#7a7f84');ctx.fillStyle=sky;ctx.fillRect(0,0,960,430);
+    ctx.fillStyle='#d9dde0';ctx.beginPath();ctx.arc(785,92,48,0,Math.PI*2);ctx.fill();ctx.fillStyle='#30343b';ctx.beginPath();ctx.arc(804,78,45,0,Math.PI*2);ctx.fill();
+    const shift=(camera*.18)%220;ctx.fillStyle='#25292e';for(let i=-1;i<7;i++){const bx=i*220-shift;ctx.fillRect(bx,205,150,225);ctx.fillRect(bx+42,155,66,50);ctx.beginPath();ctx.moveTo(bx+42,155);ctx.lineTo(bx+75,110);ctx.lineTo(bx+108,155);ctx.fill();ctx.fillStyle='#b9a86b';for(let wy=235;wy<390;wy+=52){ctx.fillRect(bx+25,wy,16,25);ctx.fillRect(bx+104,wy,16,25)}ctx.fillStyle='#25292e'}
+    ctx.fillStyle='#42474d';ctx.fillRect(0,426,960,15);ctx.fillStyle='#737980';for(let i=0;i<18;i++){ctx.beginPath();ctx.arc(i*60-(camera*.35%60),426,18,Math.PI,0);ctx.fill()}
   }
   map.forEach((row,y)=>row.forEach((value,x)=>value!==' '&&value!=='F'&&drawTile(x,y,value)));
   coins.forEach((coin,i)=>{if(coin.taken)return;ctx.fillStyle='#ffd43b';ctx.beginPath();ctx.ellipse(coin.x+12-camera,coin.y+12,7+Math.sin(performance.now()/150+i)*3,12,0,0,7);ctx.fill()});
