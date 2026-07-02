@@ -43,7 +43,8 @@ function loadLevel(index){
     }
     if(value==='C'){coins.push({x:x*TILE+12,y:6*TILE+10,taken:false});map[y][x]=' '}
   }));
-  map.slice(0,4).forEach(row=>row.forEach((value,x)=>{if(value==='Q')row[x]='B'}));
+  const decorativeRows=index===1?map:map.slice(0,4);
+  decorativeRows.forEach(row=>row.forEach((value,x)=>{if(value==='Q')row[x]='B'}));
   (index===0?[11,35,55]:[12,34,57]).forEach(x=>map[6][x]='Q');
   const heroHeight=starsCollected>0?64:44;
   hero={x:start.x,y:start.y-heroHeight,w:34,h:heroHeight,vx:0,vy:0,ground:false,dead:false,invincible:0,crouching:false,facing:1};
