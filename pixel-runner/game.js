@@ -1,7 +1,7 @@
 const canvas=document.querySelector('#game'),ctx=canvas.getContext('2d'),$=s=>document.querySelector(s);
 const TILE=48,COLS=80,ROWS=12,GRAVITY=1600;
 const keys={left:false,right:false,jump:false,down:false,fire:false};
-let map,hero,enemies=[],coins=[],treasures=[],fireballs=[],camera=0,score=0,lives=3,stage=0,running=false,paused=false,last=0,audio,nextAction='restart',loopToken=0,fireCooldown=0;
+let map,hero,enemies=[],coins=[],treasures=[],fireballs=[],camera=0,score=0,lives=3,stage=0,running=false,paused=false,last=0,audio,nextAction='restart',loopToken=0,fireCooldown=0,bossDefeated=false;
 let coinsCollected=0,starsCollected=0,openedBlocks=0;
 
 const LEVELS=[[
@@ -37,8 +37,8 @@ function loadLevel(index){
     if(value==='S'){start={x:x*TILE,y:y*TILE};map[y][x]=' '}
     if(value==='E'||value==='K'||value==='M'){
       const type=value==='E'?'walker':value==='K'?'turtle':'boss';
-      const size=type==='boss'?64:type==='turtle'?44:38;
-      enemies.push({type,x:type==='boss'?56*TILE:x*TILE,y:y*TILE-size,w:size,h:size,vx:type==='boss'?-105:-75,vy:0,alive:true,shell:false,hp:type==='boss'?3:1,invincible:0});
+      const size=type==='boss'?78:type==='turtle'?44:38;
+      enemies.push({type,x:type==='boss'?64*TILE:x*TILE,y:y*TILE-size,w:size,h:size,vx:type==='boss'?0:-75,vy:0,alive:true,shell:false,hp:type==='boss'?3:1,invincible:0,awake:type!=='boss',patrolMin:58*TILE,patrolMax:72*TILE});
       map[y][x]=' ';
     }
     if(value==='C'){coins.push({x:x*TILE+12,y:6*TILE+10,taken:false});map[y][x]=' '}
@@ -47,6 +47,7 @@ function loadLevel(index){
   (index===0?[11,35,55]:[12,34,57]).forEach(x=>map[6][x]='Q');
   const heroHeight=starsCollected>0?64:44;
   hero={x:start.x,y:start.y-heroHeight,w:34,h:heroHeight,vx:0,vy:0,ground:false,dead:false,invincible:0,crouching:false,facing:1};
+  if(index===1)bossDefeated=false;
   camera=0;fireCooldown=0;running=true;paused=false;last=performance.now();nextAction='restart';hideOverlay();updateHud();draw();
   const token=++loopToken;requestAnimationFrame(time=>loop(time,token));
 }
@@ -104,7 +105,9 @@ function updateShellHits(){
 }
 function updateEnemy(enemy,dt){
   if(!enemy.alive)return;enemy.invincible=Math.max(0,enemy.invincible-dt);
+  if(enemy.type==='boss'&&!enemy.awake){if(hero.x>50*TILE){enemy.awake=true;enemy.vx=-95;tone(75,.35)}else enemy.vx=0}
   const oldVx=enemy.vx;physics(enemy,dt);if(oldVx&&enemy.vx===0)enemy.vx=-oldVx;
+  if(enemy.type==='boss'){if(enemy.x<enemy.patrolMin){enemy.x=enemy.patrolMin;enemy.vx=Math.abs(enemy.vx||95)}if(enemy.x+enemy.w>enemy.patrolMax){enemy.x=enemy.patrolMax-enemy.w;enemy.vx=-Math.abs(enemy.vx||95)}}
   if(enemy.ground&&enemy.type!=='boss'&&!(enemy.type==='turtle'&&enemy.shell&&Math.abs(enemy.vx)>100)){const ahead=enemy.vx>=0?enemy.x+enemy.w+3:enemy.x-3,foot=enemy.y+enemy.h+3;if(!solid(Math.floor(ahead/TILE),Math.floor(foot/TILE)))enemy.vx=enemy.vx>=0?-Math.abs(oldVx||75):Math.abs(oldVx||75)}
   if(enemy.y>650){enemy.alive=false;return}
   if(!overlap(hero,enemy)||hero.dead||enemy.invincible>0)return;
@@ -128,7 +131,7 @@ function collectStar(item){
 }
 function overlap(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y}
 function enterBossStage(){running=false;nextAction='boss';showOverlay('CASTLE 1–2','魔王關開啟','穿越城堡，踩擊魔王三次來拯救像素世界。','進入魔王關')}
-function winGame(){running=false;nextAction='restart';score+=2000;showOverlay('ALL CLEAR','冒險成功！',`魔王已被擊敗，最終得到 <b>${score}</b> 分。`,'重新冒險');updateHud()}
+function winGame(){if(bossDefeated)return;bossDefeated=true;running=false;nextAction='restart';score+=2000;showOverlay('ALL CLEAR','冒險成功！',`魔王已被擊敗，最終得到 <b>${score}</b> 分。`,'重新冒險');updateHud()}
 function loseLife(){
   if(hero.dead||hero.invincible>0)return;hero.dead=true;lives--;tone(90,.3);updateHud();
   if(lives<=0){running=false;nextAction='restart';showOverlay('GAME OVER','冒險結束','再試一次，寶物與魔王都在等著你。','重新挑戰');return}
@@ -146,7 +149,12 @@ function drawTile(tx,ty,value){
 function draw(){
   ctx.setTransform(1,0,0,1,0,0);ctx.globalAlpha=1;ctx.clearRect(0,0,960,540);ctx.fillStyle=stage?'#241b32':'#63c9f1';ctx.fillRect(0,0,960,540);
   if(!stage){ctx.fillStyle='#fff';for(let i=0;i<8;i++){let px=(i*190-camera*.18)%1200;if(px<0)px+=1200;ctx.fillRect(px,78+(i%3)*50,70,18);ctx.fillRect(px+18,66+(i%3)*50,35,18)}}
-  else{ctx.fillStyle='#675278';for(let i=0;i<16;i++)ctx.fillRect(i*90-(camera*.15%90),70+(i%4)*55,18,32)}
+  else{
+    const sky=ctx.createLinearGradient(0,0,0,430);sky.addColorStop(0,'#100d2a');sky.addColorStop(.55,'#362044');sky.addColorStop(1,'#9b3c35');ctx.fillStyle=sky;ctx.fillRect(0,0,960,430);
+    ctx.fillStyle='#f7e9b0';ctx.beginPath();ctx.arc(785,92,48,0,Math.PI*2);ctx.fill();ctx.fillStyle='#100d2a';ctx.beginPath();ctx.arc(804,78,45,0,Math.PI*2);ctx.fill();
+    const shift=(camera*.18)%220;ctx.fillStyle='#18132b';for(let i=-1;i<7;i++){const bx=i*220-shift;ctx.fillRect(bx,205,150,225);ctx.fillRect(bx+42,155,66,50);ctx.beginPath();ctx.moveTo(bx+42,155);ctx.lineTo(bx+75,110);ctx.lineTo(bx+108,155);ctx.fill();ctx.fillStyle='#f06a3b';for(let wy=235;wy<390;wy+=52){ctx.fillRect(bx+25,wy,16,25);ctx.fillRect(bx+104,wy,16,25)}ctx.fillStyle='#18132b'}
+    ctx.fillStyle='#ff5b32';ctx.fillRect(0,426,960,15);ctx.fillStyle='#ffc247';for(let i=0;i<18;i++){ctx.beginPath();ctx.arc(i*60-(camera*.35%60),426,18,Math.PI,0);ctx.fill()}
+  }
   map.forEach((row,y)=>row.forEach((value,x)=>value!==' '&&value!=='F'&&drawTile(x,y,value)));
   coins.forEach((coin,i)=>{if(coin.taken)return;ctx.fillStyle='#ffd43b';ctx.beginPath();ctx.ellipse(coin.x+12-camera,coin.y+12,7+Math.sin(performance.now()/150+i)*3,12,0,0,7);ctx.fill()});
   treasures.forEach(item=>{ctx.fillStyle=item.type==='coin'?'#ffd43b':'#fff36b';ctx.font=item.type==='coin'?'24px serif':'27px serif';ctx.fillText(item.type==='coin'?'●':'★',item.x-camera,item.y)});
@@ -157,7 +165,7 @@ function drawEnemy(enemy){
   if(!enemy.alive||enemy.invincible>0&&Math.floor(enemy.invincible*12)%2)return;const px=enemy.x-camera;
   if(enemy.type==='walker'){ctx.fillStyle='#623b35';ctx.fillRect(px,enemy.y+10,enemy.w,enemy.h-10)}
   if(enemy.type==='turtle'){ctx.fillStyle='#276f3b';ctx.beginPath();ctx.ellipse(px+enemy.w/2,enemy.y+enemy.h/2,enemy.w/2,enemy.h/2,0,0,7);ctx.fill();ctx.strokeStyle='#9ce35e';ctx.lineWidth=3;ctx.beginPath();ctx.arc(px+enemy.w/2,enemy.y+enemy.h/2,enemy.w*.28,0,Math.PI*2);ctx.stroke();if(!enemy.shell){ctx.fillStyle='#d9ef8b';ctx.beginPath();ctx.arc(px+(enemy.vx>0?enemy.w-4:4),enemy.y+5,10,0,Math.PI*2);ctx.fill();ctx.fillStyle='#17251b';ctx.fillRect(px+(enemy.vx>0?enemy.w-1:1),enemy.y+2,3,4);ctx.fillStyle='#e3b55b';ctx.fillRect(px+4,enemy.y+enemy.h-3,11,6);ctx.fillRect(px+enemy.w-15,enemy.y+enemy.h-3,11,6)}}
-  if(enemy.type==='boss'){ctx.fillStyle='#9c45d5';ctx.fillRect(px,enemy.y+12,enemy.w,enemy.h-12);ctx.fillStyle='#ffd447';ctx.fillRect(px+6,enemy.y,52,18);ctx.fillStyle='#fff';ctx.fillRect(px+12,enemy.y+26,10,11);ctx.fillRect(px+42,enemy.y+26,10,11);ctx.fillStyle='#ef4b3f';ctx.fillRect(px+15,enemy.y-8,7,10);ctx.fillRect(px+42,enemy.y-8,7,10)}
+  if(enemy.type==='boss'){ctx.fillStyle='#792fa8';ctx.fillRect(px+5,enemy.y+20,enemy.w-10,enemy.h-20);ctx.fillStyle='#b84fda';ctx.fillRect(px,enemy.y+34,enemy.w,enemy.h-40);ctx.fillStyle='#ffd447';ctx.fillRect(px+8,enemy.y+8,enemy.w-16,20);ctx.fillStyle='#fff';ctx.fillRect(px+15,enemy.y+34,13,13);ctx.fillRect(px+enemy.w-28,enemy.y+34,13,13);ctx.fillStyle='#161020';ctx.fillRect(px+20,enemy.y+38,5,7);ctx.fillRect(px+enemy.w-25,enemy.y+38,5,7);ctx.fillStyle='#ef4b3f';ctx.beginPath();ctx.moveTo(px+12,enemy.y+10);ctx.lineTo(px+20,enemy.y-12);ctx.lineTo(px+29,enemy.y+10);ctx.fill();ctx.beginPath();ctx.moveTo(px+enemy.w-29,enemy.y+10);ctx.lineTo(px+enemy.w-20,enemy.y-12);ctx.lineTo(px+enemy.w-12,enemy.y+10);ctx.fill()}
   if(enemy.type!=='turtle'||!enemy.shell){ctx.fillStyle='#111';ctx.fillRect(px+10,enemy.y+17,4,6);ctx.fillRect(px+enemy.w-14,enemy.y+17,4,6)}
 }
 function drawBossHealth(){const boss=enemies.find(enemy=>enemy.type==='boss'&&enemy.alive);if(!boss||stage!==1)return;ctx.fillStyle='#120d19cc';ctx.fillRect(330,18,300,34);ctx.fillStyle='#ef4b62';ctx.fillRect(338,26,284*(boss.hp/3),18);ctx.strokeStyle='#ffd447';ctx.strokeRect(338,26,284,18);ctx.fillStyle='#fff';ctx.font='bold 12px monospace';ctx.textAlign='center';ctx.fillText(`魔王 HP ${boss.hp}/3`,480,39)}
