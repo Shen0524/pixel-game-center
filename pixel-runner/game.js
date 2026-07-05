@@ -1,6 +1,10 @@
 const canvas=document.querySelector('#game'),ctx=canvas.getContext('2d'),$=s=>document.querySelector(s);
 const TILE=48,COLS=80,ROWS=12,GRAVITY=1600;
 const turtleSprite=new Image();turtleSprite.src='assets/turtle.png';
+const chestnutSprite=new Image();chestnutSprite.src='assets/chestnut.png';
+const fishSprite=new Image();fishSprite.src='assets/flying-fish.png';
+const dragonSprite=new Image();dragonSprite.src='assets/green-dragon.png';
+const mushroomSprite=new Image();mushroomSprite.src='assets/mushroom.png';
 const keys={left:false,right:false,jump:false,down:false,fire:false};
 let map,hero,enemies=[],coins=[],treasures=[],fireballs=[],dragonFire=[],camera=0,score=0,lives=3,stage=0,running=false,paused=false,last=0,audio,nextAction='restart',loopToken=0,fireCooldown=0,bossDefeated=false;
 let coinsCollected=0,starsCollected=0,openedBlocks=0,nextLifeAt=20,bonusUsed=false;
@@ -11,7 +15,7 @@ const LEVELS=[[
   '          QQQ        BBBB       QBB        QBB       BBQBB',
   '                              C                                BBB',
   '                        P                    P            C',
-  '       C       E           K             E       K                    E      F',
+  '       C       E        R  K             E       K          R         E      F',
   '  S           ####         #####             ######       ####            #######',
   '######   ###########   ############   ##############   ###########   ###########',
   '######   ###########   ############   ##############   ###########   ###########',
@@ -23,7 +27,7 @@ const LEVELS=[[
   '                  QQQ                                  QQQ',
   '                                                                    Q',
   '          P            K                K                  P',
-  '  S              E             K                 E             M',
+  '  S              E       R     K                 E      R      M',
   '################################################################################',
   '################################################################################',
   '################################################################################',
@@ -45,10 +49,11 @@ function loadLevel(index){
   enemies=[];coins=[];treasures=[];fireballs=[];dragonFire=[];let start={x:96,y:300};
   map.forEach((row,y)=>row.forEach((value,x)=>{
     if(value==='S'){start={x:x*TILE,y:y*TILE};map[y][x]=' '}
-    if(value==='E'||value==='K'||value==='M'){
-      const type=value==='E'?'walker':value==='K'?'turtle':'boss';
-      const size=type==='boss'?78:type==='turtle'?44:38;
-      enemies.push({type,x:type==='boss'?64*TILE:x*TILE,y:y*TILE-size,w:size,h:size,vx:type==='boss'?0:-75,vy:0,alive:true,shell:false,hp:type==='boss'?3:1,invincible:0,awake:type!=='boss',patrolMin:58*TILE,patrolMax:72*TILE,attackTimer:2.2});
+    if(value==='E'||value==='K'||value==='M'||value==='R'){
+      const type=value==='E'?'walker':value==='K'?'turtle':value==='R'?'flying':'boss';
+      const size=type==='boss'?88:type==='turtle'?44:type==='flying'?48:40;
+      const enemyY=type==='flying'?y*TILE-size:y*TILE-size;
+      enemies.push({type,x:type==='boss'?64*TILE:x*TILE,y:enemyY,baseY:enemyY,w:size,h:type==='boss'?96:size,vx:type==='boss'?0:type==='flying'?-105:-75,vy:0,alive:true,shell:false,hp:type==='boss'?3:1,invincible:0,awake:type!=='boss',patrolMin:58*TILE,patrolMax:72*TILE,attackTimer:2.2,phase:Math.random()*Math.PI*2});
       map[y][x]=' ';
     }
     if(value==='C'){coins.push({x:x*TILE+12,y:6*TILE+10,taken:false});map[y][x]=' '}
@@ -124,11 +129,16 @@ function updateShellHits(){
 }
 function updateEnemy(enemy,dt){
   if(!enemy.alive)return;enemy.invincible=Math.max(0,enemy.invincible-dt);
+  if(enemy.type==='flying'){
+    enemy.phase+=dt*3.2;enemy.x+=enemy.vx*dt;enemy.y=enemy.baseY+Math.sin(enemy.phase)*26;
+    const ahead=Math.floor((enemy.x+(enemy.vx>0?enemy.w:0))/TILE),mid=Math.floor((enemy.y+enemy.h/2)/TILE);
+    if(enemy.x<0||enemy.x+enemy.w>COLS*TILE||solid(ahead,mid))enemy.vx*=-1;
+  }
   if(enemy.type==='boss'&&!enemy.awake){if(hero.x>50*TILE){enemy.awake=true;enemy.vx=-95;tone(75,.35)}else enemy.vx=0}
-  const oldVx=enemy.vx;physics(enemy,dt);if(oldVx&&enemy.vx===0)enemy.vx=-oldVx;
+  const oldVx=enemy.vx;if(enemy.type!=='flying')physics(enemy,dt);if(enemy.type!=='flying'&&oldVx&&enemy.vx===0)enemy.vx=-oldVx;
   if(enemy.type==='boss'){if(enemy.x<enemy.patrolMin){enemy.x=enemy.patrolMin;enemy.vx=Math.abs(enemy.vx||95)}if(enemy.x+enemy.w>enemy.patrolMax){enemy.x=enemy.patrolMax-enemy.w;enemy.vx=-Math.abs(enemy.vx||95)}}
   if(enemy.type==='boss'&&enemy.awake){enemy.attackTimer-=dt;if(enemy.attackTimer<=0){breatheFire(enemy);enemy.attackTimer=1.8+Math.random()*1.8}}
-  if(enemy.ground&&enemy.type!=='boss'&&!(enemy.type==='turtle'&&enemy.shell&&Math.abs(enemy.vx)>100)){const ahead=enemy.vx>=0?enemy.x+enemy.w+3:enemy.x-3,foot=enemy.y+enemy.h+3;if(!solid(Math.floor(ahead/TILE),Math.floor(foot/TILE)))enemy.vx=enemy.vx>=0?-Math.abs(oldVx||75):Math.abs(oldVx||75)}
+  if(enemy.ground&&enemy.type!=='boss'&&enemy.type!=='flying'&&!(enemy.type==='turtle'&&enemy.shell&&Math.abs(enemy.vx)>100)){const ahead=enemy.vx>=0?enemy.x+enemy.w+3:enemy.x-3,foot=enemy.y+enemy.h+3;if(!solid(Math.floor(ahead/TILE),Math.floor(foot/TILE)))enemy.vx=enemy.vx>=0?-Math.abs(oldVx||75):Math.abs(oldVx||75)}
   if(enemy.y>650){enemy.alive=false;return}
   if(!overlap(hero,enemy)||hero.dead||enemy.invincible>0)return;
   if(hero.invincible>2&&enemy.type!=='boss'){enemy.alive=false;score+=300;tone(980,.05);return}
@@ -185,17 +195,17 @@ function draw(){
   }
   map.forEach((row,y)=>row.forEach((value,x)=>value!==' '&&value!=='F'&&drawTile(x,y,value)));
   coins.forEach((coin,i)=>{if(coin.taken)return;ctx.fillStyle='#ffd43b';ctx.beginPath();ctx.ellipse(coin.x+12-camera,coin.y+12,7+Math.sin(performance.now()/150+i)*3,12,0,0,7);ctx.fill()});
-  treasures.forEach(item=>{ctx.fillStyle=item.type==='coin'?'#ffd43b':'#fff36b';ctx.font=item.type==='coin'?'24px serif':'27px serif';ctx.fillText(item.type==='coin'?'●':'★',item.x-camera,item.y)});
+  treasures.forEach(item=>{if(item.type==='coin'){ctx.fillStyle='#ffd43b';ctx.font='24px serif';ctx.fillText('●',item.x-camera,item.y)}else if(mushroomSprite.complete&&mushroomSprite.naturalWidth)ctx.drawImage(mushroomSprite,item.x-camera-3,item.y-4,34,28);else{ctx.fillStyle='#e9443f';ctx.fillRect(item.x-camera,item.y,28,22)}});
   fireballs.forEach(ball=>{ctx.fillStyle='#ffed57';ctx.shadowColor='#ff6b35';ctx.shadowBlur=12;ctx.beginPath();ctx.arc(ball.x-camera+8,ball.y+8,8,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0});
   dragonFire.forEach(flame=>{const px=flame.x-camera;ctx.fillStyle='#ff3d1f';ctx.shadowColor='#ff9b28';ctx.shadowBlur=16;ctx.beginPath();ctx.moveTo(px,flame.y+8);ctx.lineTo(px+12,flame.y);ctx.lineTo(px+22,flame.y+8);ctx.lineTo(px+12,flame.y+16);ctx.fill();ctx.fillStyle='#ffe052';ctx.beginPath();ctx.arc(px+12,flame.y+8,5,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0});
   enemies.forEach(drawEnemy);drawFlag();drawBossHealth();drawHero();
 }
 function drawEnemy(enemy){
   if(!enemy.alive||enemy.invincible>0&&Math.floor(enemy.invincible*12)%2)return;const px=enemy.x-camera;
-  if(enemy.type==='walker'){ctx.fillStyle='#623b35';ctx.fillRect(px,enemy.y+10,enemy.w,enemy.h-10)}
+  if(enemy.type==='walker'){if(chestnutSprite.complete&&chestnutSprite.naturalWidth)ctx.drawImage(chestnutSprite,px-5,enemy.y,50,40);else{ctx.fillStyle='#623b35';ctx.fillRect(px,enemy.y+10,enemy.w,enemy.h-10)}}
+  if(enemy.type==='flying'&&fishSprite.complete&&fishSprite.naturalWidth){ctx.save();if(enemy.vx>0){ctx.translate(px+enemy.w,0);ctx.scale(-1,1);ctx.drawImage(fishSprite,0,enemy.y-2,58,48)}else ctx.drawImage(fishSprite,px-10,enemy.y-2,58,48);ctx.restore()}
   if(enemy.type==='turtle'){if(!enemy.shell&&turtleSprite.complete&&turtleSprite.naturalWidth){ctx.save();if(enemy.vx>0){ctx.translate(px+enemy.w/2,0);ctx.scale(-1,1);ctx.drawImage(turtleSprite,-32,enemy.y-4,64,48)}else ctx.drawImage(turtleSprite,px-10,enemy.y-4,64,48);ctx.restore()}else{ctx.fillStyle='#276f3b';ctx.beginPath();ctx.ellipse(px+enemy.w/2,enemy.y+enemy.h/2,enemy.w/2,enemy.h/2,0,0,7);ctx.fill();ctx.strokeStyle='#e6c94f';ctx.lineWidth=3;ctx.beginPath();ctx.arc(px+enemy.w/2,enemy.y+enemy.h/2,enemy.w*.28,0,Math.PI*2);ctx.stroke()}}
-  if(enemy.type==='boss'){const facing=enemy.vx<=0?-1:1;ctx.fillStyle='#1f793f';ctx.beginPath();ctx.ellipse(px+39,enemy.y+45,34,31,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#4eb65f';ctx.beginPath();ctx.ellipse(px+(facing<0?10:68),enemy.y+31,24,18,0,0,Math.PI*2);ctx.fill();ctx.fillRect(px+(facing<0?-3:56),enemy.y+31,26,15);ctx.fillStyle='#d9ed9b';ctx.fillRect(px+(facing<0?7:62),enemy.y+42,18,8);ctx.fillStyle='#fff';ctx.fillRect(px+(facing<0?10:62),enemy.y+22,9,9);ctx.fillStyle='#151c13';ctx.fillRect(px+(facing<0?10:67),enemy.y+25,4,5);ctx.fillStyle='#efb84a';ctx.beginPath();ctx.moveTo(px+18,enemy.y+18);ctx.lineTo(px+25,enemy.y-7);ctx.lineTo(px+32,enemy.y+19);ctx.fill();ctx.beginPath();ctx.moveTo(px+48,enemy.y+18);ctx.lineTo(px+55,enemy.y-7);ctx.lineTo(px+62,enemy.y+20);ctx.fill();ctx.fillStyle='#2c8f51';ctx.beginPath();ctx.moveTo(px+28,enemy.y+43);ctx.lineTo(px-17,enemy.y+17);ctx.lineTo(px+14,enemy.y+62);ctx.fill();ctx.beginPath();ctx.moveTo(px+50,enemy.y+43);ctx.lineTo(px+96,enemy.y+18);ctx.lineTo(px+65,enemy.y+62);ctx.fill();ctx.strokeStyle='#56c96d';ctx.lineWidth=7;ctx.beginPath();ctx.moveTo(px+62,enemy.y+56);ctx.quadraticCurveTo(px+94,enemy.y+69,px+99,enemy.y+49);ctx.stroke()}
-  if(enemy.type==='walker'){ctx.fillStyle='#111';ctx.fillRect(px+10,enemy.y+17,4,6);ctx.fillRect(px+enemy.w-14,enemy.y+17,4,6)}
+  if(enemy.type==='boss'&&dragonSprite.complete&&dragonSprite.naturalWidth){ctx.save();if(enemy.vx>0){ctx.translate(px+enemy.w,0);ctx.scale(-1,1);ctx.drawImage(dragonSprite,0,enemy.y-10,enemy.w,enemy.h+10)}else ctx.drawImage(dragonSprite,px,enemy.y-10,enemy.w,enemy.h+10);ctx.restore()}
 }
 function drawBossHealth(){const boss=enemies.find(enemy=>enemy.type==='boss'&&enemy.alive);if(!boss||stage!==1)return;ctx.fillStyle='#120d19cc';ctx.fillRect(330,18,300,34);ctx.fillStyle='#ef4b62';ctx.fillRect(338,26,284*(boss.hp/3),18);ctx.strokeStyle='#ffd447';ctx.strokeRect(338,26,284,18);ctx.fillStyle='#fff';ctx.font='bold 12px monospace';ctx.textAlign='center';ctx.fillText(`龍王 HP ${boss.hp}/3`,480,39)}
 function drawFlag(){if(stage!==0)return;const row=map.find(r=>r.includes('F'));if(!row)return;const fx=row.indexOf('F')*TILE-camera;ctx.fillStyle='#eee';ctx.fillRect(fx,110,6,330);ctx.fillStyle='#ef4b3f';ctx.fillRect(fx+6,118,76,45);ctx.fillStyle='#ffd447';ctx.fillRect(fx+17,130,17,17)}
