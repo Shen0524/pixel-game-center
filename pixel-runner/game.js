@@ -1,5 +1,6 @@
 const canvas=document.querySelector('#game'),ctx=canvas.getContext('2d'),$=s=>document.querySelector(s);
 const TILE=48,COLS=80,ROWS=12,GRAVITY=1600;
+const turtleSprite=new Image();turtleSprite.src='assets/turtle.png';
 const keys={left:false,right:false,jump:false,down:false,fire:false};
 let map,hero,enemies=[],coins=[],treasures=[],fireballs=[],dragonFire=[],camera=0,score=0,lives=3,stage=0,running=false,paused=false,last=0,audio,nextAction='restart',loopToken=0,fireCooldown=0,bossDefeated=false;
 let coinsCollected=0,starsCollected=0,openedBlocks=0,nextLifeAt=20,bonusUsed=false;
@@ -170,7 +171,7 @@ function drawTile(tx,ty,value){
   if(value==='P'){ctx.fillStyle='#49a654';ctx.fillRect(px+5,py,TILE-10,TILE);ctx.fillStyle='#82e66f';ctx.fillRect(px,py,TILE,10)}
 }
 function draw(){
-  ctx.setTransform(1,0,0,1,0,0);ctx.globalAlpha=1;ctx.clearRect(0,0,960,540);ctx.fillStyle=stage?'#241b32':'#63c9f1';ctx.fillRect(0,0,960,540);
+  ctx.setTransform(1,0,0,1,0,0);ctx.globalAlpha=1;ctx.imageSmoothingEnabled=false;ctx.clearRect(0,0,960,540);ctx.fillStyle=stage?'#241b32':'#63c9f1';ctx.fillRect(0,0,960,540);
   if(!stage){ctx.fillStyle='#fff';for(let i=0;i<8;i++){let px=(i*190-camera*.18)%1200;if(px<0)px+=1200;ctx.fillRect(px,78+(i%3)*50,70,18);ctx.fillRect(px+18,66+(i%3)*50,35,18)}}
   else if(stage===1){
     const sky=ctx.createLinearGradient(0,0,0,430);sky.addColorStop(0,'#30343b');sky.addColorStop(.55,'#555b63');sky.addColorStop(1,'#7a7f84');ctx.fillStyle=sky;ctx.fillRect(0,0,960,430);
@@ -192,7 +193,7 @@ function draw(){
 function drawEnemy(enemy){
   if(!enemy.alive||enemy.invincible>0&&Math.floor(enemy.invincible*12)%2)return;const px=enemy.x-camera;
   if(enemy.type==='walker'){ctx.fillStyle='#623b35';ctx.fillRect(px,enemy.y+10,enemy.w,enemy.h-10)}
-  if(enemy.type==='turtle'){ctx.fillStyle='#276f3b';ctx.beginPath();ctx.ellipse(px+enemy.w/2,enemy.y+enemy.h/2,enemy.w/2,enemy.h/2,0,0,7);ctx.fill();ctx.strokeStyle='#9ce35e';ctx.lineWidth=3;ctx.beginPath();ctx.arc(px+enemy.w/2,enemy.y+enemy.h/2,enemy.w*.28,0,Math.PI*2);ctx.stroke();if(!enemy.shell){ctx.fillStyle='#d9ef8b';ctx.beginPath();ctx.arc(px+(enemy.vx>0?enemy.w-4:4),enemy.y+5,10,0,Math.PI*2);ctx.fill();ctx.fillStyle='#17251b';ctx.fillRect(px+(enemy.vx>0?enemy.w-1:1),enemy.y+2,3,4);ctx.fillStyle='#e3b55b';ctx.fillRect(px+4,enemy.y+enemy.h-3,11,6);ctx.fillRect(px+enemy.w-15,enemy.y+enemy.h-3,11,6)}}
+  if(enemy.type==='turtle'){if(!enemy.shell&&turtleSprite.complete&&turtleSprite.naturalWidth){ctx.save();if(enemy.vx>0){ctx.translate(px+enemy.w/2,0);ctx.scale(-1,1);ctx.drawImage(turtleSprite,-32,enemy.y-4,64,48)}else ctx.drawImage(turtleSprite,px-10,enemy.y-4,64,48);ctx.restore()}else{ctx.fillStyle='#276f3b';ctx.beginPath();ctx.ellipse(px+enemy.w/2,enemy.y+enemy.h/2,enemy.w/2,enemy.h/2,0,0,7);ctx.fill();ctx.strokeStyle='#e6c94f';ctx.lineWidth=3;ctx.beginPath();ctx.arc(px+enemy.w/2,enemy.y+enemy.h/2,enemy.w*.28,0,Math.PI*2);ctx.stroke()}}
   if(enemy.type==='boss'){const facing=enemy.vx<=0?-1:1;ctx.fillStyle='#1f793f';ctx.beginPath();ctx.ellipse(px+39,enemy.y+45,34,31,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#4eb65f';ctx.beginPath();ctx.ellipse(px+(facing<0?10:68),enemy.y+31,24,18,0,0,Math.PI*2);ctx.fill();ctx.fillRect(px+(facing<0?-3:56),enemy.y+31,26,15);ctx.fillStyle='#d9ed9b';ctx.fillRect(px+(facing<0?7:62),enemy.y+42,18,8);ctx.fillStyle='#fff';ctx.fillRect(px+(facing<0?10:62),enemy.y+22,9,9);ctx.fillStyle='#151c13';ctx.fillRect(px+(facing<0?10:67),enemy.y+25,4,5);ctx.fillStyle='#efb84a';ctx.beginPath();ctx.moveTo(px+18,enemy.y+18);ctx.lineTo(px+25,enemy.y-7);ctx.lineTo(px+32,enemy.y+19);ctx.fill();ctx.beginPath();ctx.moveTo(px+48,enemy.y+18);ctx.lineTo(px+55,enemy.y-7);ctx.lineTo(px+62,enemy.y+20);ctx.fill();ctx.fillStyle='#2c8f51';ctx.beginPath();ctx.moveTo(px+28,enemy.y+43);ctx.lineTo(px-17,enemy.y+17);ctx.lineTo(px+14,enemy.y+62);ctx.fill();ctx.beginPath();ctx.moveTo(px+50,enemy.y+43);ctx.lineTo(px+96,enemy.y+18);ctx.lineTo(px+65,enemy.y+62);ctx.fill();ctx.strokeStyle='#56c96d';ctx.lineWidth=7;ctx.beginPath();ctx.moveTo(px+62,enemy.y+56);ctx.quadraticCurveTo(px+94,enemy.y+69,px+99,enemy.y+49);ctx.stroke()}
   if(enemy.type==='walker'){ctx.fillStyle='#111';ctx.fillRect(px+10,enemy.y+17,4,6);ctx.fillRect(px+enemy.w-14,enemy.y+17,4,6)}
 }
