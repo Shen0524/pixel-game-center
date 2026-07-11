@@ -1,5 +1,7 @@
 const canvas=document.querySelector('#game'),ctx=canvas.getContext('2d'),$=s=>document.querySelector(s);
 const TILE=48,COLS=80,ROWS=12,GRAVITY=1600;
+const castleSky=ctx.createLinearGradient(0,0,0,430);castleSky.addColorStop(0,'#30343b');castleSky.addColorStop(.55,'#555b63');castleSky.addColorStop(1,'#7a7f84');
+const caveSky=ctx.createLinearGradient(0,0,0,540);caveSky.addColorStop(0,'#102d3b');caveSky.addColorStop(1,'#06171f');
 const turtleSprite=new Image();turtleSprite.src='assets/turtle.png';
 const chestnutSprite=new Image();chestnutSprite.src='assets/chestnut.png';
 const fishSprite=new Image();fishSprite.src='assets/flying-fish.png';
@@ -8,6 +10,7 @@ const mushroomSprite=new Image();mushroomSprite.src='assets/mushroom.png';
 const keys={left:false,right:false,jump:false,down:false,fire:false};
 let map,hero,enemies=[],coins=[],treasures=[],fireballs=[],dragonFire=[],camera=0,score=0,lives=3,stage=0,running=false,paused=false,last=0,audio,nextAction='restart',loopToken=0,fireCooldown=0,bossDefeated=false;
 let coinsCollected=0,starsCollected=0,openedBlocks=0,nextLifeAt=20,bonusUsed=false;
+let hudScore='',hudCoins='',hudLives='';
 
 const LEVELS=[[
   '', '', '',
@@ -184,26 +187,30 @@ function draw(){
   ctx.setTransform(1,0,0,1,0,0);ctx.globalAlpha=1;ctx.imageSmoothingEnabled=false;ctx.clearRect(0,0,960,540);ctx.fillStyle=stage?'#241b32':'#63c9f1';ctx.fillRect(0,0,960,540);
   if(!stage){ctx.fillStyle='#fff';for(let i=0;i<8;i++){let px=(i*190-camera*.18)%1200;if(px<0)px+=1200;ctx.fillRect(px,78+(i%3)*50,70,18);ctx.fillRect(px+18,66+(i%3)*50,35,18)}}
   else if(stage===1){
-    const sky=ctx.createLinearGradient(0,0,0,430);sky.addColorStop(0,'#30343b');sky.addColorStop(.55,'#555b63');sky.addColorStop(1,'#7a7f84');ctx.fillStyle=sky;ctx.fillRect(0,0,960,430);
+    ctx.fillStyle=castleSky;ctx.fillRect(0,0,960,430);
     ctx.fillStyle='#d9dde0';ctx.beginPath();ctx.arc(785,92,48,0,Math.PI*2);ctx.fill();ctx.fillStyle='#30343b';ctx.beginPath();ctx.arc(804,78,45,0,Math.PI*2);ctx.fill();
     const shift=(camera*.18)%220;ctx.fillStyle='#25292e';for(let i=-1;i<7;i++){const bx=i*220-shift;ctx.fillRect(bx,205,150,225);ctx.fillRect(bx+42,155,66,50);ctx.beginPath();ctx.moveTo(bx+42,155);ctx.lineTo(bx+75,110);ctx.lineTo(bx+108,155);ctx.fill();ctx.fillStyle='#b9a86b';for(let wy=235;wy<390;wy+=52){ctx.fillRect(bx+25,wy,16,25);ctx.fillRect(bx+104,wy,16,25)}ctx.fillStyle='#25292e'}
     ctx.fillStyle='#42474d';ctx.fillRect(0,426,960,15);ctx.fillStyle='#737980';for(let i=0;i<18;i++){ctx.beginPath();ctx.arc(i*60-(camera*.35%60),426,18,Math.PI,0);ctx.fill()}
   }else{
-    const cave=ctx.createLinearGradient(0,0,0,540);cave.addColorStop(0,'#102d3b');cave.addColorStop(1,'#06171f');ctx.fillStyle=cave;ctx.fillRect(0,0,960,540);
+    ctx.fillStyle=caveSky;ctx.fillRect(0,0,960,540);
     ctx.fillStyle='#1d4b59';for(let y=18;y<430;y+=54)for(let x=-40;x<1000;x+=90){const offset=(Math.floor(y/54)%2)*44;ctx.fillRect(x+offset-(camera*.08%90),y,72,32)}
     ctx.fillStyle='#4f8790';ctx.fillRect(0,420,960,18);ctx.fillStyle='#8ed9d2';ctx.font='bold 16px monospace';ctx.textAlign='left';ctx.fillText('BONUS CAVE · 收集金幣後從右側水管離開',24,38);
   }
-  map.forEach((row,y)=>row.forEach((value,x)=>value!==' '&&value!=='F'&&drawTile(x,y,value)));
-  coins.forEach((coin,i)=>{if(coin.taken)return;ctx.fillStyle='#ffd43b';ctx.beginPath();ctx.ellipse(coin.x+12-camera,coin.y+12,7+Math.sin(performance.now()/150+i)*3,12,0,0,7);ctx.fill()});
+  const firstColumn=Math.max(0,Math.floor(camera/TILE)-1),lastColumn=Math.min(COLS-1,Math.ceil((camera+960)/TILE)+1);
+  map.forEach((row,y)=>{for(let x=firstColumn;x<=lastColumn;x++){const value=row[x];if(value!==' '&&value!=='F')drawTile(x,y,value)}});
+  coins.forEach((coin,i)=>{if(coin.taken||coin.x<camera-30||coin.x>camera+990)return;ctx.fillStyle='#ffd43b';ctx.beginPath();ctx.ellipse(coin.x+12-camera,coin.y+12,7+Math.sin(performance.now()/150+i)*3,12,0,0,7);ctx.fill()});
   treasures.forEach(item=>{if(item.type==='coin'){ctx.fillStyle='#ffd43b';ctx.font='24px serif';ctx.fillText('●',item.x-camera,item.y)}else if(mushroomSprite.complete&&mushroomSprite.naturalWidth)ctx.drawImage(mushroomSprite,item.x-camera-3,item.y-4,34,28);else{ctx.fillStyle='#e9443f';ctx.fillRect(item.x-camera,item.y,28,22)}});
   fireballs.forEach(ball=>{ctx.fillStyle='#ffed57';ctx.shadowColor='#ff6b35';ctx.shadowBlur=12;ctx.beginPath();ctx.arc(ball.x-camera+8,ball.y+8,8,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0});
   dragonFire.forEach(flame=>{const px=flame.x-camera;ctx.fillStyle='#ff3d1f';ctx.shadowColor='#ff9b28';ctx.shadowBlur=16;ctx.beginPath();ctx.moveTo(px,flame.y+8);ctx.lineTo(px+12,flame.y);ctx.lineTo(px+22,flame.y+8);ctx.lineTo(px+12,flame.y+16);ctx.fill();ctx.fillStyle='#ffe052';ctx.beginPath();ctx.arc(px+12,flame.y+8,5,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0});
-  enemies.forEach(drawEnemy);drawFlag();drawBossHealth();drawHero();
+  enemies.forEach(enemy=>{if(enemy.x+enemy.w>camera-80&&enemy.x<camera+1040)drawEnemy(enemy)});drawFlag();drawBossHealth();drawHero();
 }
 function drawEnemy(enemy){
   if(!enemy.alive||enemy.invincible>0&&Math.floor(enemy.invincible*12)%2)return;const px=enemy.x-camera;
   if(enemy.type==='walker'){if(chestnutSprite.complete&&chestnutSprite.naturalWidth)ctx.drawImage(chestnutSprite,px-5,enemy.y,50,40);else{ctx.fillStyle='#623b35';ctx.fillRect(px,enemy.y+10,enemy.w,enemy.h-10)}}
-  if(enemy.type==='flying'&&fishSprite.complete&&fishSprite.naturalWidth){ctx.save();if(enemy.vx>0){ctx.translate(px+enemy.w,0);ctx.scale(-1,1);ctx.drawImage(fishSprite,0,enemy.y-2,58,48)}else ctx.drawImage(fishSprite,px-10,enemy.y-2,58,48);ctx.restore()}
+  if(enemy.type==='flying'&&fishSprite.complete&&fishSprite.naturalWidth){
+    ctx.save();if(enemy.vx>0){ctx.translate(px+enemy.w,0);ctx.scale(-1,1);ctx.drawImage(fishSprite,-5,enemy.y-5,64,54)}else ctx.drawImage(fishSprite,px-11,enemy.y-5,64,54);ctx.restore();
+    const eyeX=enemy.vx>0?px+37:px+3;ctx.fillStyle='#fff';ctx.fillRect(eyeX,enemy.y+10,8,9);ctx.fillStyle='#171218';ctx.fillRect(eyeX+(enemy.vx>0?3:1),enemy.y+12,4,5);
+  }
   if(enemy.type==='turtle'){if(!enemy.shell&&turtleSprite.complete&&turtleSprite.naturalWidth){ctx.save();if(enemy.vx>0){ctx.translate(px+enemy.w/2,0);ctx.scale(-1,1);ctx.drawImage(turtleSprite,-32,enemy.y-4,64,48)}else ctx.drawImage(turtleSprite,px-10,enemy.y-4,64,48);ctx.restore()}else{ctx.fillStyle='#276f3b';ctx.beginPath();ctx.ellipse(px+enemy.w/2,enemy.y+enemy.h/2,enemy.w/2,enemy.h/2,0,0,7);ctx.fill();ctx.strokeStyle='#e6c94f';ctx.lineWidth=3;ctx.beginPath();ctx.arc(px+enemy.w/2,enemy.y+enemy.h/2,enemy.w*.28,0,Math.PI*2);ctx.stroke()}}
   if(enemy.type==='boss'&&dragonSprite.complete&&dragonSprite.naturalWidth){ctx.save();if(enemy.vx>0){ctx.translate(px+enemy.w,0);ctx.scale(-1,1);ctx.drawImage(dragonSprite,0,enemy.y-10,enemy.w,enemy.h+10)}else ctx.drawImage(dragonSprite,px,enemy.y-10,enemy.w,enemy.h+10);ctx.restore()}
 }
@@ -211,7 +218,7 @@ function drawBossHealth(){const boss=enemies.find(enemy=>enemy.type==='boss'&&en
 function drawFlag(){if(stage!==0)return;const row=map.find(r=>r.includes('F'));if(!row)return;const fx=row.indexOf('F')*TILE-camera;ctx.fillStyle='#eee';ctx.fillRect(fx,110,6,330);ctx.fillStyle='#ef4b3f';ctx.fillRect(fx+6,118,76,45);ctx.fillStyle='#ffd447';ctx.fillRect(fx+17,130,17,17)}
 function drawHero(){if(hero.dead)return;const px=hero.x-camera,big=hero.h>44&&!hero.crouching,flash=hero.invincible>2,dir=hero.facing;ctx.globalAlpha=hero.invincible>0&&Math.floor(hero.invincible*12)%2?.45:1;const red=flash?`hsl(${performance.now()/4%360} 90% 62%)`:'#e9443f',blue=flash?'#fff36b':'#24558e';ctx.fillStyle=red;ctx.fillRect(px+4,hero.y,26,big?15:12);ctx.fillRect(px+(dir>0?1:22),hero.y+6,11,5);ctx.fillStyle='#5a2d24';ctx.fillRect(px+(dir>0?5:23),hero.y+3,6,7);ctx.fillStyle='#ffd39b';ctx.fillRect(px+6,hero.y+(big?15:12),23,big?20:14);ctx.fillStyle='#5a2d24';ctx.fillRect(px+(dir>0?23:7),hero.y+(big?20:17),4,6);ctx.fillStyle=blue;ctx.fillRect(px+3,hero.y+(big?35:26),28,big?20:14);ctx.fillStyle=red;ctx.fillRect(px+3,hero.y+(big?38:28),6,big?16:11);ctx.fillRect(px+25,hero.y+(big?38:28),6,big?16:11);ctx.fillStyle='#39251e';ctx.fillRect(px+1,hero.y+hero.h-7,12,7);ctx.fillRect(px+21,hero.y+hero.h-7,12,7);ctx.globalAlpha=1}
 function loop(time,token){if(!running||token!==loopToken)return;const dt=Math.min((time-last)/1000,.03);last=time;if(!paused)update(dt);draw();requestAnimationFrame(next=>loop(next,token))}
-function updateHud(){$('#score').textContent=String(score).padStart(6,'0');$('#coins').textContent=String(coinsCollected).padStart(2,'0');$('#lives').textContent='♥'.repeat(Math.max(lives,0))}
+function updateHud(){const nextScore=String(score).padStart(6,'0'),nextCoins=String(coinsCollected).padStart(2,'0'),nextLives='♥'.repeat(Math.max(lives,0));if(nextScore!==hudScore){$('#score').textContent=nextScore;hudScore=nextScore}if(nextCoins!==hudCoins){$('#coins').textContent=nextCoins;hudCoins=nextCoins}if(nextLives!==hudLives){$('#lives').textContent=nextLives;hudLives=nextLives}}
 function showOverlay(kicker,title,message,button){$('#kicker').textContent=kicker;$('#title').textContent=title;$('#message').innerHTML=message;$('#start').textContent=button;$('#overlay').classList.remove('hidden')}
 function hideOverlay(){$('#overlay').classList.add('hidden')}
 function tone(frequency,duration){audio??=new AudioContext();const oscillator=audio.createOscillator(),gain=audio.createGain();oscillator.type='square';oscillator.frequency.value=frequency;gain.gain.setValueAtTime(.025,audio.currentTime);gain.gain.exponentialRampToValueAtTime(.001,audio.currentTime+duration);oscillator.connect(gain).connect(audio.destination);oscillator.start();oscillator.stop(audio.currentTime+duration)}
